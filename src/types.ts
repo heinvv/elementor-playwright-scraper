@@ -24,6 +24,7 @@ export type InPagePayload = {
 export type InPageScraperResult = {
 	selector: string;
 	elements: Omit<ScrapedElement, 'selector'>[];
+	inPageError?: string;
 };
 
 export type DimensionSource = 'inline' | 'stylesheet' | 'computed';

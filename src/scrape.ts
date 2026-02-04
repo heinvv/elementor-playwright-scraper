@@ -4,27 +4,9 @@ import type {
 	ScrapeResult,
 	InPagePayload,
 	InPageScraperResult,
-	FindRuleValueFunction,
-	GetValueFromSheetFunction,
-	GetPropertyFromStylesheetsFunction,
-	GetDimensionWithSourceFunction,
-	CollectComputedStylesFunction,
-	ApplyDimensionOverridesFunction,
-	CloneElementWithIdFunction,
-	BuildElementDataFunction,
 } from './types.ts';
 import { COMPUTED_STYLE_PROPERTIES, SCRAPED_ID_PREFIX } from './types.ts';
-import {
-	findRuleValue,
-	getValueFromSheet,
-	getPropertyFromStylesheets,
-	getDimensionWithSource,
-	collectComputedStyles,
-	applyDimensionOverrides,
-	cloneElementWithId,
-	buildElementDataRunner,
-	runInPage,
-} from './helpers.ts';
+import { IN_PAGE_SCRIPT } from './in-page-script.generated.ts';
 
 export class Scraper {
 	private browser: Browser | null = null;
@@ -33,86 +15,6 @@ export class Scraper {
 
 	constructor(defaultTimeoutMs: number = 60000) {
 		this.defaultTimeoutMs = defaultTimeoutMs;
-	}
-
-	private buildPipeline(
-		steps: { name: string; create: (p: Record<string, unknown>) => unknown }[]
-	): Record<string, unknown> {
-		const resolved: Record<string, unknown> = {};
-
-		for (const step of steps) {
-			resolved[step.name] = step.create(resolved);
-		}
-
-		return resolved;
-	}
-
-	private buildInPagePipeline(): { buildElementData: BuildElementDataFunction } {
-		const pipeline = this.buildPipeline([
-			{
-				name: 'findRuleValue',
-				create: () => findRuleValue,
-			},
-			{
-				name: 'getValueFromSheet',
-				create: (resolved) =>
-					getValueFromSheet.bind(
-						null,
-						resolved.findRuleValue as FindRuleValueFunction
-					),
-			},
-			{
-				name: 'getPropertyFromStylesheets',
-				create: (resolved) =>
-					getPropertyFromStylesheets.bind(
-						null,
-						resolved.getValueFromSheet as GetValueFromSheetFunction
-					),
-			},
-			{
-				name: 'getDimensionWithSource',
-				create: (resolved) =>
-					getDimensionWithSource.bind(
-						null,
-						resolved.getPropertyFromStylesheets as GetPropertyFromStylesheetsFunction
-					),
-			},
-			{
-				name: 'collectComputedStyles',
-				create: () => collectComputedStyles,
-			},
-			{
-				name: 'applyDimensionOverrides',
-				create: (resolved) =>
-					applyDimensionOverrides.bind(
-						null,
-						resolved.getDimensionWithSource as GetDimensionWithSourceFunction
-					),
-			},
-			{
-				name: 'cloneElementWithId',
-				create: () => cloneElementWithId,
-			},
-			{
-				name: 'buildElementData',
-				create: (resolved) =>
-					buildElementDataRunner.bind(
-						null,
-						resolved.collectComputedStyles as CollectComputedStylesFunction,
-						resolved.applyDimensionOverrides as ApplyDimensionOverridesFunction,
-						resolved.cloneElementWithId as CloneElementWithIdFunction
-					),
-			},
-		]);
-
-		return {
-			buildElementData: pipeline.buildElementData as BuildElementDataFunction,
-		};
-	}
-
-	getInPageScraperFunction(): (payload: InPagePayload) => InPageScraperResult {
-		const { buildElementData } = this.buildInPagePipeline();
-		return runInPage.bind(null, buildElementData);
 	}
 
 	private async evaluateSelector(
@@ -126,7 +28,12 @@ export class Scraper {
 			idPrefix: SCRAPED_ID_PREFIX,
 		};
 
-		return this.page!.evaluate(this.getInPageScraperFunction(), payload);
+		const runInPage = new Function(
+			'payload',
+			IN_PAGE_SCRIPT
+		) as (payload: InPagePayload) => InPageScraperResult;
+
+		return this.page!.evaluate(runInPage, payload);
 	}
 
 	async run(url: string, selectors: string[], timeoutMs?: number): Promise<ScrapeResult> {
@@ -142,9 +49,20 @@ export class Scraper {
 				const trimmed = selector.trim();
 				if (!trimmed) continue;
 
-				const result = await this.evaluateSelector(trimmed, elements.length);
+				await this.page!.waitForSelector(trimmed, {
+					state: 'attached',
+					timeout: 10000,
+				}).catch(() => {});
 
-				for (const element of result.elements) {
+				const result = await this.evaluateSelector(trimmed, elements.length);
+				const resultElements = result?.elements ?? [];
+				console.log(trimmed, 'querySelectorAll length', resultElements.length);
+
+				if (result?.inPageError) {
+					console.error('in-page error for selector', trimmed, result.inPageError);
+				}
+
+				for (const element of resultElements) {
 					elements.push({ ...element, selector: trimmed });
 				}
 			}

@@ -24,7 +24,10 @@ export class ConverterClient {
 		const htmlParts: string[] = [];
 		result.elements.forEach((el, i) => {
 			const id = `${SCRAPED_ID_PREFIX}${i}`;
-			rules.push(this.buildCssRule(id, el.styles));
+			const rule = this.buildCssRule(id, el.styles);
+			if (rule !== `#${id}{}`) {
+				rules.push(rule);
+			}
 			htmlParts.push(el.html);
 		});
 		const styleBlock = `<style>\n${rules.join('\n')}\n</style>`;
