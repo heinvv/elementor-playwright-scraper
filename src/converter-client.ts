@@ -23,11 +23,15 @@ export class ConverterClient {
 		const rules: string[] = [];
 		const htmlParts: string[] = [];
 		result.elements.forEach((el, i) => {
-			const id = `${SCRAPED_ID_PREFIX}${i}`;
-			const rule = this.buildCssRule(id, el.styles);
-			if (rule !== `#${id}{}`) {
-				rules.push(rule);
-			}
+			const nodes = el.descendantStyles?.length
+				? el.descendantStyles
+				: [{ id: `${SCRAPED_ID_PREFIX}${i}`, styles: el.styles }];
+			nodes.forEach((node) => {
+				const rule = this.buildCssRule(node.id, node.styles);
+				if (rule !== `#${node.id}{}`) {
+					rules.push(rule);
+				}
+			});
 			htmlParts.push(el.html);
 		});
 		const styleBlock = `<style>\n${rules.join('\n')}\n</style>`;

@@ -5,7 +5,7 @@ Scrape a URL with comma-separated CSS selectors, collect DOM and interpreted sty
 ## Requirements
 
 - Node 20+
-- Playwright (Chromium only)
+- Playwright with **Chromium** (style collection uses the Chrome DevTools Protocol and is Chromium-only)
 
 The converter endpoint is provided by the [Elementor HTML/CSS converter](https://github.com/elementor/elementor-html-css-converter) plugin. This scraper does not include that plugin; you run it against a WordPress site where the converter is installed.
 
@@ -19,9 +19,11 @@ npx playwright install chromium
 
 **Environment**
 
-| Variable | Required | Description |
-|----------|----------|-------------|
+
+| Variable             | Required      | Description                                                                                                                                                            |
+| -------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ELEMENTOR_BASE_URL` | For converter | Base URL of the site that hosts the converter (e.g. `http://elementor.local/`). Used only for the converter POST. If unset, scrape still runs but no API call is made. |
+
 
 ## Usage
 
@@ -31,12 +33,14 @@ npm run scrape -- --url "https://example.com" --selectors ".hero, .card"
 
 **Options**
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `-u, --url <url>` | Yes | URL to scrape (public page). |
-| `-s, --selectors <list>` | Yes | Comma-separated CSS selectors. |
-| `-o, --output <path>` | No | Write result JSON to file (directory created if needed). |
-| `-t, --timeout <ms>` | No | Page load timeout in ms (default: 60000). |
+
+| Option                   | Required | Description                                              |
+| ------------------------ | -------- | -------------------------------------------------------- |
+| `-u, --url <url>`        | Yes      | URL to scrape (public page).                             |
+| `-s, --selectors <list>` | Yes      | Comma-separated CSS selectors.                           |
+| `-o, --output <path>`    | No       | Write result JSON to file (directory created if needed). |
+| `-t, --timeout <ms>`     | No       | Page load timeout in ms (default: 60000).                |
+
 
 **Output**
 
@@ -66,7 +70,7 @@ Workflow: `.github/workflows/scrape.yml` (manual run only).
 ## Important details
 
 - Only **public** pages are scraped; no login or auth.
-- Width/height are taken from inline → stylesheet → computed; other properties use computed style.
+- Styles are **author-defined only** (from CDP matched rules and inherited), with resolved values from computed style; width/height source is inline, stylesheet, or computed.
 - Element IDs in the built HTML are `scraped-0`, `scraped-1`, … and must match the converter’s expectations.
-- The in-page logic runs inside the browser via Playwright’s `page.evaluate()`; helpers are serialized and must stay dependency-free for that context.
+- The scraper uses the Chrome DevTools Protocol (CDP) for DOM and CSS; no in-page script is used for style collection.
 

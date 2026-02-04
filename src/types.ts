@@ -1,11 +1,17 @@
 export const SCRAPED_ID_PREFIX = 'scraped-';
 
+export interface ScrapedNodeStyles {
+	id: string;
+	styles: Record<string, string>;
+}
+
 export interface ScrapedElement {
 	selector: string;
 	index: number;
 	tagName: string;
 	html: string;
 	styles: Record<string, string>;
+	descendantStyles?: ScrapedNodeStyles[];
 	widthSource?: 'inline' | 'stylesheet' | 'computed';
 	heightSource?: 'inline' | 'stylesheet' | 'computed';
 }
