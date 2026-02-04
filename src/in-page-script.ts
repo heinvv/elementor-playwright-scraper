@@ -50,6 +50,14 @@ export function runInPage(payload: InPagePayload): InPageScraperResult {
 			return null;
 		}
 
+		function isPropertySetByAuthor(element: Element, prop: string): boolean {
+			const el = element as HTMLElement;
+			if (el.style && (el.style as CSSStyleDeclaration).getPropertyValue(prop).trim() !== '') {
+				return true;
+			}
+			return getPropertyFromStylesheets(element, prop) !== null;
+		}
+
 		function getDimensionWithSource(
 			element: Element,
 			prop: 'width' | 'height'
@@ -74,6 +82,7 @@ export function runInPage(payload: InPagePayload): InPageScraperResult {
 			const styles: Record<string, string> = {};
 			for (let i = 0; i < props.length; i++) {
 				const prop = props[i];
+				if (!isPropertySetByAuthor(element, prop)) continue;
 				const val = computed.getPropertyValue(prop);
 				if (val) styles[prop] = val;
 			}
@@ -89,11 +98,13 @@ export function runInPage(payload: InPagePayload): InPageScraperResult {
 		} {
 			const widthInfo = getDimensionWithSource(element, 'width');
 			const heightInfo = getDimensionWithSource(element, 'height');
-			if (widthInfo.value) styles['width'] = widthInfo.value;
-			if (heightInfo.value) styles['height'] = heightInfo.value;
+			const widthIsAuthorSet = widthInfo.source === 'inline' || widthInfo.source === 'stylesheet';
+			const heightIsAuthorSet = heightInfo.source === 'inline' || heightInfo.source === 'stylesheet';
+			if (widthInfo.value && widthIsAuthorSet) styles['width'] = widthInfo.value;
+			if (heightInfo.value && heightIsAuthorSet) styles['height'] = heightInfo.value;
 			return {
-				widthSource: widthInfo.value ? widthInfo.source : undefined,
-				heightSource: heightInfo.value ? heightInfo.source : undefined,
+				widthSource: widthInfo.value && widthIsAuthorSet ? widthInfo.source : undefined,
+				heightSource: heightInfo.value && heightIsAuthorSet ? heightInfo.source : undefined,
 			};
 		}
 

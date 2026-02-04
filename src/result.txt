@@ -1,0 +1,145 @@
+heinvv@Jans-MacBook-Pro elementor-playwright-scraper % npm run scrape -- --url "https://labelvier.nl/" --selectors ".page-footer-top"
+
+> elementor-playwright-scraper@1.0.0 scrape
+> npx tsx src/cli.ts --url https://labelvier.nl/ --selectors .page-footer-top
+
+.page-footer-top querySelectorAll length 1
+{
+  "scrape": {
+    "elements": [
+      {
+        "index": 0,
+        "tagName": "div",
+        "html": "<div class=\"page-footer-top\" id=\"scraped-0\">\n    <div class=\"o-container--medium\">\n        <h3>Wat kunnen we voor jou <strong>betekenen</strong>?</h3>\n                    <a href=\"/diensten/\" class=\"button u-white-space-no-wrap\">\n                bekijk de mogelijkheden            </a>\n            </div>\n</div>",
+        "styles": {
+          "width": "1280px",
+          "height": "143px",
+          "min-width": "0px",
+          "max-width": "none",
+          "min-height": "0px",
+          "max-height": "none",
+          "margin": "0px",
+          "margin-top": "0px",
+          "margin-right": "0px",
+          "margin-bottom": "0px",
+          "margin-left": "0px",
+          "padding": "30px 0px 60px",
+          "padding-top": "30px",
+          "padding-right": "0px",
+          "padding-bottom": "60px",
+          "padding-left": "0px",
+          "color": "rgb(0, 0, 0)",
+          "background-color": "rgb(255, 255, 255)",
+          "background": "rgb(255, 255, 255) none repeat scroll 0% 0% / auto padding-box border-box",
+          "border": "0px none rgb(0, 0, 0)",
+          "border-width": "0px",
+          "border-style": "none",
+          "border-color": "rgb(0, 0, 0)",
+          "border-radius": "0px",
+          "font-size": "19px",
+          "font-weight": "400",
+          "font-family": "\"Hind Guntur\", sans-serif",
+          "line-height": "21.85px",
+          "display": "block",
+          "position": "static",
+          "top": "auto",
+          "right": "auto",
+          "bottom": "auto",
+          "left": "auto",
+          "flex-direction": "row",
+          "flex-wrap": "nowrap",
+          "align-items": "normal",
+          "justify-content": "normal",
+          "gap": "normal",
+          "box-sizing": "border-box"
+        },
+        "widthSource": "computed",
+        "heightSource": "computed",
+        "selector": ".page-footer-top"
+      }
+    ]
+  },
+  "htmlSent": "<style>\n#scraped-0{width: 1280px; height: 143px; min-width: 0px; max-width: none; min-height: 0px; max-height: none; margin: 0px; margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px; padding: 30px 0px 60px; padding-top: 30px; padding-right: 0px; padding-bottom: 60px; padding-left: 0px; color: rgb(0, 0, 0); background-color: rgb(255, 255, 255); background: rgb(255, 255, 255) none repeat scroll 0% 0% / auto padding-box border-box; border: 0px none rgb(0, 0, 0); border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 0px; font-size: 19px; font-weight: 400; font-family: \"Hind Guntur\", sans-serif; line-height: 21.85px; display: block; position: static; top: auto; right: auto; bottom: auto; left: auto; flex-direction: row; flex-wrap: nowrap; align-items: normal; justify-content: normal; gap: normal; box-sizing: border-box;}\n</style>\n<div class=\"page-footer-top\" id=\"scraped-0\">\n    <div class=\"o-container--medium\">\n        <h3>Wat kunnen we voor jou <strong>betekenen</strong>?</h3>\n                    <a href=\"/diensten/\" class=\"button u-white-space-no-wrap\">\n                bekijk de mogelijkheden            </a>\n            </div>\n</div>"
+}
+heinvv@Jans-MacBook-Pro elementor-playwright-scraper % tsx scripts/build-in-page.ts
+zsh: command not found: tsx
+heinvv@Jans-MacBook-Pro elementor-playwright-scraper % npx tsx scripts/build-in-page.ts
+heinvv@Jans-MacBook-Pro elementor-playwright-scraper % npm run scrape -- --url "https://labelvier.nl/" --selectors ".page-footer-top"
+
+> elementor-playwright-scraper@1.0.0 scrape
+> npx tsx src/cli.ts --url https://labelvier.nl/ --selectors .page-footer-top
+
+/Users/heinvv/Local Sites/elementor/app/public/wp-content/repos/elementor-playwright-scraper/src/scrape.ts:9
+import { IN_PAGE_SCRIPT } from './in-page-script.ts';
+         ^
+SyntaxError: The requested module './in-page-script.ts' does not provide an export named 'IN_PAGE_SCRIPT'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:302:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:405:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:660:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.13.0
+heinvv@Jans-MacBook-Pro elementor-playwright-scraper % npm run scrape -- --url "https://labelvier.nl/" --selectors ".page-footer-top"
+
+> elementor-playwright-scraper@1.0.0 scrape
+> npx tsx src/cli.ts --url https://labelvier.nl/ --selectors .page-footer-top
+
+.page-footer-top querySelectorAll length 1
+{
+  "scrape": {
+    "elements": [
+      {
+        "index": 0,
+        "tagName": "div",
+        "html": "<div class=\"page-footer-top\" id=\"scraped-0\">\n    <div class=\"o-container--medium\">\n        <h3>Wat kunnen we voor jou <strong>betekenen</strong>?</h3>\n                    <a href=\"/diensten/\" class=\"button u-white-space-no-wrap\">\n                bekijk de mogelijkheden            </a>\n            </div>\n</div>",
+        "styles": {
+          "width": "1280px",
+          "height": "143px",
+          "min-width": "0px",
+          "max-width": "none",
+          "min-height": "0px",
+          "max-height": "none",
+          "margin": "0px",
+          "margin-top": "0px",
+          "margin-right": "0px",
+          "margin-bottom": "0px",
+          "margin-left": "0px",
+          "padding": "30px 0px 60px",
+          "padding-top": "30px",
+          "padding-right": "0px",
+          "padding-bottom": "60px",
+          "padding-left": "0px",
+          "color": "rgb(0, 0, 0)",
+          "background-color": "rgb(255, 255, 255)",
+          "background": "rgb(255, 255, 255) none repeat scroll 0% 0% / auto padding-box border-box",
+          "border": "0px none rgb(0, 0, 0)",
+          "border-width": "0px",
+          "border-style": "none",
+          "border-color": "rgb(0, 0, 0)",
+          "border-radius": "0px",
+          "font-size": "19px",
+          "font-weight": "400",
+          "font-family": "\"Hind Guntur\", sans-serif",
+          "line-height": "21.85px",
+          "display": "block",
+          "position": "static",
+          "top": "auto",
+          "right": "auto",
+          "bottom": "auto",
+          "left": "auto",
+          "flex-direction": "row",
+          "flex-wrap": "nowrap",
+          "align-items": "normal",
+          "justify-content": "normal",
+          "gap": "normal",
+          "box-sizing": "border-box"
+        },
+        "widthSource": "computed",
+        "heightSource": "computed",
+        "selector": ".page-footer-top"
+      }
+    ]
+  },
+  "htmlSent": "<style>\n#scraped-0{width: 1280px; height: 143px; min-width: 0px; max-width: none; min-height: 0px; max-height: none; margin: 0px; margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px; padding: 30px 0px 60px; padding-top: 30px; padding-right: 0px; padding-bottom: 60px; padding-left: 0px; color: rgb(0, 0, 0); background-color: rgb(255, 255, 255); background: rgb(255, 255, 255) none repeat scroll 0% 0% / auto padding-box border-box; border: 0px none rgb(0, 0, 0); border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 0px; font-size: 19px; font-weight: 400; font-family: \"Hind Guntur\", sans-serif; line-height: 21.85px; display: block; position: static; top: auto; right: auto; bottom: auto; left: auto; flex-direction: row; flex-wrap: nowrap; align-items: normal; justify-content: normal; gap: normal; box-sizing: border-box;}\n</style>\n<div class=\"page-footer-top\" id=\"scraped-0\">\n    <div class=\"o-container--medium\">\n        <h3>Wat kunnen we voor jou <strong>betekenen</strong>?</h3>\n                    <a href=\"/diensten/\" class=\"button u-white-space-no-wrap\">\n                bekijk de mogelijkheden            </a>\n            </div>\n</div>"
+}
+heinvv@Jans-MacBook-Pro elementor-playwright-scraper % 
