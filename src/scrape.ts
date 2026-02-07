@@ -67,8 +67,7 @@ function isAuthorOrigin(origin: string | undefined): boolean {
 function collectAuthorPropertyNames(
 	matched: CDPMatchedStylesResponse,
 	includeInherited: boolean = true,
-	excludeWrapperRuleSelectors: Set<string> = new Set(),
-	debugNodeId?: string
+	excludeWrapperRuleSelectors: Set<string> = new Set()
 ): AuthorStyleCollect {
 	const names = new Set<string>();
 	const fromElement = new Set<string>();
@@ -80,7 +79,6 @@ function collectAuthorPropertyNames(
 		onlyInheritedProperties: boolean = false
 	) => {
 		if (!style?.cssProperties) return;
-		const addedProps: string[] = [];
 		for (const p of style.cssProperties) {
 			if (!p.name) continue;
 			const key = p.name.toLowerCase();
@@ -88,12 +86,6 @@ function collectAuthorPropertyNames(
 			if (!propertySource[key]) propertySource[key] = source;
 			names.add(key);
 			if (trackOnElement) fromElement.add(key);
-			if (key === 'padding-top' && debugNodeId) {
-				addedProps.push(`${p.name}: ${p.value} (from ${source})`);
-			}
-		}
-		if (addedProps.length > 0 && debugNodeId) {
-			console.log(`[DEBUG] ${debugNodeId} added padding-top from ${source}:`, addedProps);
 		}
 	};
 	addFromStyle(matched.inlineStyle, true, 'inline');
@@ -110,18 +102,9 @@ function collectAuthorPropertyNames(
 				if (!hasDescendantSelector) {
 					const allSelectorsAreWrapperOnly = selectors.every(selector => excludeWrapperRuleSelectors.has(selector));
 					if (allSelectorsAreWrapperOnly) {
-						if (debugNodeId) {
-							console.log(`[DEBUG] Excluding rule for ${debugNodeId}: "${selectorText}" (all selectors are wrapper-only)`);
-						}
 						continue;
 					}
-				} else {
-					if (debugNodeId) {
-						console.log(`[DEBUG] Including rule for ${debugNodeId}: "${selectorText}" (has descendant selector)`);
-					}
 				}
-			} else if (debugNodeId && selectorText) {
-				console.log(`[DEBUG] Including rule for ${debugNodeId}: "${selectorText}" (no exclusion check needed)`);
 			}
 			addFromStyle(rm.rule?.style, true, `matched:${selectorText || '(anonymous)'}`);
 		}
@@ -150,16 +133,12 @@ function collectAuthorPropertyNames(
 function getOriginalPropertyValue(
 	matched: CDPMatchedStylesResponse,
 	prop: string,
-	excludeWrapperRuleSelectors: Set<string> = new Set(),
-	debugNodeId?: string
+	excludeWrapperRuleSelectors: Set<string> = new Set()
 ): { value: string; source: DimensionSource } | null {
 	const propLower = prop.toLowerCase();
 	if (matched.inlineStyle?.cssProperties) {
 		for (const p of matched.inlineStyle.cssProperties) {
 			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-				if (debugNodeId && propLower === 'padding-top') {
-					console.log(`[DEBUG] ${debugNodeId} getOriginalPropertyValue found ${prop} from inline: ${p.value}`);
-				}
 				return { value: p.value.trim(), source: 'inline' };
 			}
 		}
@@ -167,9 +146,6 @@ function getOriginalPropertyValue(
 	if (matched.attributesStyle?.cssProperties) {
 		for (const p of matched.attributesStyle.cssProperties) {
 			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-				if (debugNodeId && propLower === 'padding-top') {
-					console.log(`[DEBUG] ${debugNodeId} getOriginalPropertyValue found ${prop} from attributes: ${p.value}`);
-				}
 				return { value: p.value.trim(), source: 'inline' };
 			}
 		}
@@ -189,9 +165,6 @@ function getOriginalPropertyValue(
 					const allSelectorsAreWrapperOnly = selectors.every(selector => excludeWrapperRuleSelectors.has(selector));
 					if (allSelectorsAreWrapperOnly) {
 						shouldExclude = true;
-						if (debugNodeId && propLower === 'padding-top') {
-							console.log(`[DEBUG] ${debugNodeId} getOriginalPropertyValue excluding rule "${selectorText}" for ${prop} (wrapper-only)`);
-						}
 					}
 				}
 			}
@@ -201,9 +174,6 @@ function getOriginalPropertyValue(
 			if (rm.rule?.style?.cssProperties) {
 				for (const p of rm.rule.style.cssProperties) {
 					if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-						if (debugNodeId && propLower === 'padding-top') {
-							console.log(`[DEBUG] ${debugNodeId} getOriginalPropertyValue found ${prop} from rule "${selectorText}": ${p.value}`);
-						}
 						return { value: p.value.trim(), source: 'stylesheet' };
 					}
 				}
@@ -217,9 +187,6 @@ function getOriginalPropertyValue(
 			if (entry.inlineStyle?.cssProperties) {
 				for (const p of entry.inlineStyle.cssProperties) {
 					if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-						if (debugNodeId && propLower === 'padding-top') {
-							console.log(`[DEBUG] ${debugNodeId} getOriginalPropertyValue found ${prop} from inherited inline: ${p.value}`);
-						}
 						return { value: p.value.trim(), source: 'stylesheet' };
 					}
 				}
@@ -239,9 +206,6 @@ function getOriginalPropertyValue(
 							const allSelectorsAreWrapperOnly = selectors.every(selector => excludeWrapperRuleSelectors.has(selector));
 							if (allSelectorsAreWrapperOnly) {
 								shouldExclude = true;
-								if (debugNodeId && propLower === 'padding-top') {
-									console.log(`[DEBUG] ${debugNodeId} getOriginalPropertyValue excluding inherited rule "${selectorText}" for ${prop} (wrapper-only)`);
-								}
 							}
 						}
 					}
@@ -251,9 +215,6 @@ function getOriginalPropertyValue(
 					if (rm.rule?.style?.cssProperties) {
 						for (const p of rm.rule.style.cssProperties) {
 							if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-								if (debugNodeId && propLower === 'padding-top') {
-									console.log(`[DEBUG] ${debugNodeId} getOriginalPropertyValue found ${prop} from inherited rule "${selectorText}": ${p.value}`);
-								}
 								return { value: p.value.trim(), source: 'stylesheet' };
 							}
 						}
@@ -637,7 +598,6 @@ export class Scraper {
 						}
 					}
 				}
-				console.log('[DEBUG] Wrapper rule selectors collected:', Array.from(wrapperRuleSelectors));
 				for (const nid of subtreeIds) {
 					const matched = (await client.send('CSS.getMatchedStylesForNode', {
 						nodeId: nid,
@@ -646,28 +606,15 @@ export class Scraper {
 					const excludeSelectors = isRootNode ? new Set<string>() : wrapperRuleSelectors;
 					const nodeIndex = subtreeIds.indexOf(nid);
 					const nodeId = generatedIds[nodeIndex];
-					if (!isRootNode) {
-						console.log(`[DEBUG] Processing node ${nodeId} (nid: ${nid})`);
-						if (matched.matchedCSSRules) {
-							console.log(`[DEBUG] Matched rules for ${nodeId}:`, matched.matchedCSSRules.map(rm => ({
-								selector: rm.rule?.selectorList?.text?.trim(),
-								origin: rm.rule?.origin,
-								properties: rm.rule?.style?.cssProperties?.map(p => p.name).filter(Boolean)
-							})));
-						}
-						console.log(`[DEBUG] Exclude selectors for ${nodeId}:`, Array.from(excludeSelectors));
-					}
-					const { authorSet } = collectAuthorPropertyNames(matched, isRootNode, excludeSelectors, nodeId);
+					const { authorSet } = collectAuthorPropertyNames(matched, isRootNode, excludeSelectors);
 					if (isRootNode) {
 						rootMatched = matched;
 						rootAuthorSet = authorSet;
-					} else {
-						console.log(`[DEBUG] AuthorSet for ${nodeId}:`, Array.from(authorSet).sort());
 					}
 					const nodeStyles = buildStylesForNode(authorSet, matched, excludeSelectors, isRootNode);
 					const dimensionShorthandProperties = new Set<string>();
 					for (const prop of DIMENSION_PROPERTIES) {
-						const originalValue = getOriginalPropertyValue(matched, prop, excludeSelectors, !isRootNode ? nodeId : undefined);
+						const originalValue = getOriginalPropertyValue(matched, prop, excludeSelectors);
 						if (originalValue) {
 							nodeStyles[prop] = originalValue.value;
 							if (prop === 'margin' || prop === 'padding') {
