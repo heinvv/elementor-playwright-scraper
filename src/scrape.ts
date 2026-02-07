@@ -64,7 +64,7 @@ function isAuthorOrigin(origin: string | undefined): boolean {
 	return origin === CDP_ORIGIN_REGULAR || origin === CDP_ORIGIN_INJECTED;
 }
 
-function collectAuthorPropertyNames(matched: CDPMatchedStylesResponse): AuthorStyleCollect {
+function collectAuthorPropertyNames(matched: CDPMatchedStylesResponse, includeInherited: boolean = true): AuthorStyleCollect {
 	const names = new Set<string>();
 	const fromElement = new Set<string>();
 	const propertySource: Record<string, string> = {};
@@ -93,7 +93,7 @@ function collectAuthorPropertyNames(matched: CDPMatchedStylesResponse): AuthorSt
 			addFromStyle(rm.rule?.style, true, `matched:${selectorText || '(anonymous)'}`);
 		}
 	}
-	if (matched.inherited) {
+	if (includeInherited && matched.inherited) {
 		for (const entry of matched.inherited) {
 			addFromStyle(entry.inlineStyle, false, 'inherited-inline', true);
 			if (entry.matchedCSSRules) {
@@ -112,6 +112,66 @@ function collectAuthorPropertyNames(matched: CDPMatchedStylesResponse): AuthorSt
 		}
 	}
 	return { authorSet: names, propertySource };
+}
+
+function getOriginalPropertyValue(
+	matched: CDPMatchedStylesResponse,
+	prop: string
+): { value: string; source: DimensionSource } | null {
+	const propLower = prop.toLowerCase();
+	if (matched.inlineStyle?.cssProperties) {
+		for (const p of matched.inlineStyle.cssProperties) {
+			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
+				return { value: p.value.trim(), source: 'inline' };
+			}
+		}
+	}
+	if (matched.attributesStyle?.cssProperties) {
+		for (const p of matched.attributesStyle.cssProperties) {
+			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
+				return { value: p.value.trim(), source: 'inline' };
+			}
+		}
+	}
+	if (matched.matchedCSSRules) {
+		for (let i = matched.matchedCSSRules.length - 1; i >= 0; i--) {
+			const rm = matched.matchedCSSRules[i];
+			if (!isAuthorOrigin(rm.rule?.origin)) continue;
+			if (rm.rule?.style?.cssProperties) {
+				for (const p of rm.rule.style.cssProperties) {
+					if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
+						return { value: p.value.trim(), source: 'stylesheet' };
+					}
+				}
+			}
+		}
+	}
+	if (matched.inherited) {
+		for (let i = matched.inherited.length - 1; i >= 0; i--) {
+			const entry = matched.inherited[i];
+			if (entry.inlineStyle?.cssProperties) {
+				for (const p of entry.inlineStyle.cssProperties) {
+					if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
+						return { value: p.value.trim(), source: 'stylesheet' };
+					}
+				}
+			}
+			if (entry.matchedCSSRules) {
+				for (let j = entry.matchedCSSRules.length - 1; j >= 0; j--) {
+					const rm = entry.matchedCSSRules[j];
+					if (!isAuthorOrigin(rm.rule?.origin)) continue;
+					if (rm.rule?.style?.cssProperties) {
+						for (const p of rm.rule.style.cssProperties) {
+							if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
+								return { value: p.value.trim(), source: 'stylesheet' };
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return null;
 }
 
 function getWidthHeightSource(
@@ -187,13 +247,24 @@ async function getSubtreeElementNodeIds(
 	return [nodeId, ...nodeIds];
 }
 
+const DIMENSION_PROPERTIES = new Set([
+	'width', 'height',
+	'min-width', 'max-width', 'min-height', 'max-height',
+	'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+	'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+	'top', 'right', 'bottom', 'left',
+]);
+
 function buildStylesForNode(
 	authorSet: Set<string>,
 	computedList: { name: string; value: string }[]
 ): Record<string, string> {
 	const styles: Record<string, string> = {};
 	for (const p of computedList) {
-		if (p.name && authorSet.has(p.name.toLowerCase()) && p.value != null && p.value !== '') {
+		if (!p.name) continue;
+		const propName = p.name.toLowerCase();
+		if (DIMENSION_PROPERTIES.has(propName)) continue;
+		if (authorSet.has(propName) && p.value != null && p.value !== '') {
 			styles[p.name] = p.value;
 		}
 	}
@@ -245,8 +316,9 @@ export class Scraper {
 					const matched = (await client.send('CSS.getMatchedStylesForNode', {
 						nodeId: nid,
 					})) as CDPMatchedStylesResponse;
-					const { authorSet } = collectAuthorPropertyNames(matched);
-					if (nid === rootNodeId) {
+					const isRootNode = nid === rootNodeId;
+					const { authorSet } = collectAuthorPropertyNames(matched, isRootNode);
+					if (isRootNode) {
 						rootMatched = matched;
 						rootAuthorSet = authorSet;
 					}
@@ -254,7 +326,16 @@ export class Scraper {
 						nodeId: nid,
 					})) as { computedStyle?: { name: string; value: string }[] };
 					const computedList = computed.computedStyle ?? [];
-					nodeStylesList.push(buildStylesForNode(authorSet, computedList));
+					const nodeStyles = buildStylesForNode(authorSet, computedList);
+					for (const prop of DIMENSION_PROPERTIES) {
+						const originalValue = getOriginalPropertyValue(matched, prop);
+						if (originalValue) {
+							nodeStyles[prop] = originalValue.value;
+						} else {
+							delete nodeStyles[prop];
+						}
+					}
+					nodeStylesList.push(nodeStyles);
 				}
 				const dimensionSources = rootMatched
 					? getWidthHeightSource(rootMatched, rootAuthorSet)
