@@ -64,6 +64,60 @@ function isAuthorOrigin(origin: string | undefined): boolean {
 	return origin === CDP_ORIGIN_REGULAR || origin === CDP_ORIGIN_INJECTED;
 }
 
+function generateUniqueId(): string {
+	const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+	let result = '';
+	for (let i = 0; i < 10; i++) {
+		result += chars.charAt(Math.floor(Math.random() * chars.length));
+	}
+	return result;
+}
+
+async function getRootFontSize(
+	client: CDPSession,
+	rootNodeId: number
+): Promise<number> {
+	try {
+		const htmlResult = (await client.send('DOM.querySelector', {
+			nodeId: rootNodeId,
+			selector: 'html',
+		})) as { nodeId?: number };
+		if (!htmlResult.nodeId) {
+			return 16;
+		}
+		const computed = (await client.send('CSS.getComputedStyleForNode', {
+			nodeId: htmlResult.nodeId,
+		})) as { computedStyle?: { name: string; value: string }[] };
+		const fontSize = computed.computedStyle?.find(
+			(p) => p.name === 'font-size'
+		)?.value;
+		if (!fontSize) {
+			return 16;
+		}
+		const pxValue = parseFloat(fontSize.replace('px', ''));
+		return isNaN(pxValue) ? 16 : pxValue;
+	} catch {
+		return 16;
+	}
+}
+
+function convertRemToCalc(
+	cssValue: string,
+	variableName: string
+): string {
+	const REM_PATTERN = /(-?\d*\.?\d+)rem/g;
+	if (!REM_PATTERN.test(cssValue)) {
+		return cssValue;
+	}
+	return cssValue.replace(REM_PATTERN, (match, num) => {
+		const numValue = parseFloat(num);
+		if (numValue === 0) {
+			return '0';
+		}
+		return `calc(${num} * var(${variableName}))`;
+	});
+}
+
 function collectAuthorPropertyNames(
 	matched: CDPMatchedStylesResponse,
 	includeInherited: boolean = true,
@@ -116,7 +170,17 @@ function collectAuthorPropertyNames(
 				for (const rm of entry.matchedCSSRules) {
 					if (!isAuthorOrigin(rm.rule?.origin)) continue;
 					const selectorText = rm.rule?.selectorList?.text?.trim() ?? '';
-					addFromStyle(rm.rule?.style, false, `inherited:${selectorText || '(anonymous)'}`, true);
+					const isHtmlSelector = selectorText && (selectorText === 'html' || selectorText.startsWith('html ') || selectorText === ':root');
+					if (isHtmlSelector && rm.rule?.style?.cssProperties) {
+						const filteredStyle: CDPCSSStyle = {
+							cssProperties: rm.rule.style.cssProperties.filter(
+								p => p.name && p.name.toLowerCase() !== 'font-size'
+							)
+						};
+						addFromStyle(filteredStyle, false, `inherited:${selectorText || '(anonymous)'}`, true);
+					} else {
+						addFromStyle(rm.rule?.style, false, `inherited:${selectorText || '(anonymous)'}`, true);
+					}
 				}
 			}
 		}
@@ -133,24 +197,31 @@ function collectAuthorPropertyNames(
 function getOriginalPropertyValue(
 	matched: CDPMatchedStylesResponse,
 	prop: string,
-	excludeWrapperRuleSelectors: Set<string> = new Set()
+	excludeWrapperRuleSelectors: Set<string> = new Set(),
+	remVariableName?: string
 ): { value: string; source: DimensionSource } | null {
 	const propLower = prop.toLowerCase();
+	let value: string | null = null;
+	let source: DimensionSource = 'inline';
 	if (matched.inlineStyle?.cssProperties) {
 		for (const p of matched.inlineStyle.cssProperties) {
 			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-				return { value: p.value.trim(), source: 'inline' };
+				value = p.value.trim();
+				source = 'inline';
+				break;
 			}
 		}
 	}
-	if (matched.attributesStyle?.cssProperties) {
+	if (!value && matched.attributesStyle?.cssProperties) {
 		for (const p of matched.attributesStyle.cssProperties) {
 			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-				return { value: p.value.trim(), source: 'inline' };
+				value = p.value.trim();
+				source = 'inline';
+				break;
 			}
 		}
 	}
-	if (matched.matchedCSSRules) {
+	if (!value && matched.matchedCSSRules) {
 		for (let i = matched.matchedCSSRules.length - 1; i >= 0; i--) {
 			const rm = matched.matchedCSSRules[i];
 			if (!isAuthorOrigin(rm.rule?.origin)) continue;
@@ -174,23 +245,29 @@ function getOriginalPropertyValue(
 			if (rm.rule?.style?.cssProperties) {
 				for (const p of rm.rule.style.cssProperties) {
 					if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-						return { value: p.value.trim(), source: 'stylesheet' };
+						value = p.value.trim();
+						source = 'stylesheet';
+						break;
 					}
 				}
 			}
+			if (value) break;
 		}
 	}
 	const isDimensionProperty = ['width', 'height', 'min-width', 'max-width', 'min-height', 'max-height', 'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'top', 'right', 'bottom', 'left'].includes(propLower);
-	if (matched.inherited && !isDimensionProperty) {
+	if (!value && matched.inherited && !isDimensionProperty) {
 		for (let i = matched.inherited.length - 1; i >= 0; i--) {
 			const entry = matched.inherited[i];
 			if (entry.inlineStyle?.cssProperties) {
 				for (const p of entry.inlineStyle.cssProperties) {
 					if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-						return { value: p.value.trim(), source: 'stylesheet' };
+						value = p.value.trim();
+						source = 'stylesheet';
+						break;
 					}
 				}
 			}
+			if (value) break;
 			if (entry.matchedCSSRules) {
 				for (let j = entry.matchedCSSRules.length - 1; j >= 0; j--) {
 					const rm = entry.matchedCSSRules[j];
@@ -215,13 +292,23 @@ function getOriginalPropertyValue(
 					if (rm.rule?.style?.cssProperties) {
 						for (const p of rm.rule.style.cssProperties) {
 							if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-								return { value: p.value.trim(), source: 'stylesheet' };
+								value = p.value.trim();
+								source = 'stylesheet';
+								break;
 							}
 						}
 					}
+					if (value) break;
 				}
 			}
+			if (value) break;
 		}
+	}
+	if (value) {
+		if (remVariableName) {
+			value = convertRemToCalc(value, remVariableName);
+		}
+		return { value, source };
 	}
 	return null;
 }
@@ -310,11 +397,20 @@ const DIMENSION_PROPERTIES = new Set([
 const SHORTHAND_TO_EXPANDED: Record<string, string[]> = {
 	'margin': ['margin-top', 'margin-right', 'margin-bottom', 'margin-left'],
 	'padding': ['padding-top', 'padding-right', 'padding-bottom', 'padding-left'],
-	'border': ['border-width', 'border-style', 'border-color'],
+	'border': [
+		'border-width', 'border-style', 'border-color',
+		'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+		'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+		'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+	],
 	'border-top': ['border-top-width', 'border-top-style', 'border-top-color'],
 	'border-right': ['border-right-width', 'border-right-style', 'border-right-color'],
 	'border-bottom': ['border-bottom-width', 'border-bottom-style', 'border-bottom-color'],
 	'border-left': ['border-left-width', 'border-left-style', 'border-left-color'],
+	'border-radius': [
+		'border-top-left-radius', 'border-top-right-radius',
+		'border-bottom-right-radius', 'border-bottom-left-radius',
+	],
 	'background': ['background-color', 'background-image', 'background-repeat', 'background-attachment', 'background-position', 'background-size', 'background-origin', 'background-clip'],
 	'font': ['font-style', 'font-variant', 'font-weight', 'font-size', 'line-height', 'font-family'],
 	'text-decoration': ['text-decoration-line', 'text-decoration-style', 'text-decoration-color', 'text-decoration-thickness'],
@@ -325,24 +421,28 @@ function getOriginalPropertyValueForAll(
 	matched: CDPMatchedStylesResponse,
 	prop: string,
 	excludeWrapperRuleSelectors: Set<string> = new Set(),
-	includeInherited: boolean = true
+	includeInherited: boolean = true,
+	remVariableName?: string
 ): string | null {
 	const propLower = prop.toLowerCase();
+	let value: string | null = null;
 	if (matched.inlineStyle?.cssProperties) {
 		for (const p of matched.inlineStyle.cssProperties) {
 			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-				return p.value.trim();
+				value = p.value.trim();
+				break;
 			}
 		}
 	}
-	if (matched.attributesStyle?.cssProperties) {
+	if (!value && matched.attributesStyle?.cssProperties) {
 		for (const p of matched.attributesStyle.cssProperties) {
 			if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-				return p.value.trim();
+				value = p.value.trim();
+				break;
 			}
 		}
 	}
-	if (matched.matchedCSSRules) {
+	if (!value && matched.matchedCSSRules) {
 		for (let i = matched.matchedCSSRules.length - 1; i >= 0; i--) {
 			const rm = matched.matchedCSSRules[i];
 			if (!isAuthorOrigin(rm.rule?.origin)) continue;
@@ -366,13 +466,15 @@ function getOriginalPropertyValueForAll(
 			if (rm.rule?.style?.cssProperties) {
 				for (const p of rm.rule.style.cssProperties) {
 					if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-						return p.value.trim();
+						value = p.value.trim();
+						break;
 					}
 				}
 			}
+			if (value) break;
 		}
 	}
-	if (includeInherited && matched.inherited) {
+	if (!value && includeInherited && matched.inherited) {
 		const isInheritable = !NON_INHERITED_CSS_PROPERTIES.has(propLower);
 		if (isInheritable) {
 			for (let i = matched.inherited.length - 1; i >= 0; i--) {
@@ -380,10 +482,12 @@ function getOriginalPropertyValueForAll(
 				if (entry.inlineStyle?.cssProperties) {
 					for (const p of entry.inlineStyle.cssProperties) {
 						if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-							return p.value.trim();
+							value = p.value.trim();
+							break;
 						}
 					}
 				}
+				if (value) break;
 				if (entry.matchedCSSRules) {
 					for (let j = entry.matchedCSSRules.length - 1; j >= 0; j--) {
 						const rm = entry.matchedCSSRules[j];
@@ -402,22 +506,31 @@ function getOriginalPropertyValueForAll(
 								}
 							}
 						}
+						if (propLower === 'font-size' && selectorText && (selectorText === 'html' || selectorText.startsWith('html '))) {
+							shouldExclude = true;
+						}
 						if (shouldExclude) {
 							continue;
 						}
 						if (rm.rule?.style?.cssProperties) {
 							for (const p of rm.rule.style.cssProperties) {
 								if (p.name && p.name.toLowerCase() === propLower && p.value && p.value.trim()) {
-									return p.value.trim();
+									value = p.value.trim();
+									break;
 								}
 							}
 						}
+						if (value) break;
 					}
 				}
+				if (value) break;
 			}
 		}
 	}
-	return null;
+	if (value && remVariableName) {
+		return convertRemToCalc(value, remVariableName);
+	}
+	return value;
 }
 
 const BROWSER_DEFAULT_PROPERTIES_TO_FILTER = new Set([
@@ -447,14 +560,15 @@ function buildStylesForNode(
 	authorSet: Set<string>,
 	matched: CDPMatchedStylesResponse,
 	excludeWrapperRuleSelectors: Set<string> = new Set(),
-	includeInherited: boolean = true
+	includeInherited: boolean = true,
+	remVariableName?: string
 ): Record<string, string> {
 	const styles: Record<string, string> = {};
 	const shorthandProperties = new Set<string>();
 	for (const prop of authorSet) {
 		if (DIMENSION_PROPERTIES.has(prop)) continue;
 		if (BROWSER_DEFAULT_PROPERTIES_TO_FILTER.has(prop.toLowerCase())) continue;
-		const originalValue = getOriginalPropertyValueForAll(matched, prop, excludeWrapperRuleSelectors, includeInherited);
+		const originalValue = getOriginalPropertyValueForAll(matched, prop, excludeWrapperRuleSelectors, includeInherited, remVariableName);
 		if (originalValue) {
 			const propLower = prop.toLowerCase();
 			if (propLower === 'height' && originalValue === '100%') {
@@ -470,24 +584,49 @@ function buildStylesForNode(
 				}
 			}
 			styles[prop] = originalValue;
-			if (SHORTHAND_TO_EXPANDED[prop]) {
-				shorthandProperties.add(prop);
+			if (SHORTHAND_TO_EXPANDED[propLower]) {
+				shorthandProperties.add(propLower);
 			}
 		}
 	}
 	for (const [shorthand, expanded] of Object.entries(SHORTHAND_TO_EXPANDED)) {
 		if (shorthandProperties.has(shorthand)) {
 			for (const expandedProp of expanded) {
-				delete styles[expandedProp];
+				const expandedPropLower = expandedProp.toLowerCase();
+				for (const key in styles) {
+					if (key.toLowerCase() === expandedPropLower) {
+						delete styles[key];
+					}
+				}
 			}
 		}
 	}
-	if (styles['background']) {
+	const backgroundKey = Object.keys(styles).find(k => k.toLowerCase() === 'background');
+	if (backgroundKey) {
 		for (const bgProp of SHORTHAND_TO_EXPANDED['background']) {
-			delete styles[bgProp];
+			const bgPropLower = bgProp.toLowerCase();
+			for (const key in styles) {
+				if (key.toLowerCase() === bgPropLower) {
+					delete styles[key];
+				}
+			}
 		}
-		delete styles['background-position-x'];
-		delete styles['background-position-y'];
+		for (const key in styles) {
+			if (key.toLowerCase() === 'background-position-x' || key.toLowerCase() === 'background-position-y') {
+				delete styles[key];
+			}
+		}
+	}
+	const borderRadiusKey = Object.keys(styles).find(k => k.toLowerCase() === 'border-radius');
+	if (borderRadiusKey) {
+		for (const radiusProp of SHORTHAND_TO_EXPANDED['border-radius']) {
+			const radiusPropLower = radiusProp.toLowerCase();
+			for (const key in styles) {
+				if (key.toLowerCase() === radiusPropLower) {
+					delete styles[key];
+				}
+			}
+		}
 	}
 	return styles;
 }
@@ -551,7 +690,8 @@ export class Scraper {
 		client: CDPSession,
 		rootNodeId: number,
 		selector: string,
-		startIndex: number
+		startIndex: number,
+		remVariableName?: string
 	): Promise<InPageScraperResult> {
 		const nodeIds = (await client.send('DOM.querySelectorAll', {
 			nodeId: rootNodeId,
@@ -611,10 +751,10 @@ export class Scraper {
 						rootMatched = matched;
 						rootAuthorSet = authorSet;
 					}
-					const nodeStyles = buildStylesForNode(authorSet, matched, excludeSelectors, isRootNode);
+					const nodeStyles = buildStylesForNode(authorSet, matched, excludeSelectors, isRootNode, remVariableName);
 					const dimensionShorthandProperties = new Set<string>();
 					for (const prop of DIMENSION_PROPERTIES) {
-						const originalValue = getOriginalPropertyValue(matched, prop, excludeSelectors);
+						const originalValue = getOriginalPropertyValue(matched, prop, excludeSelectors, remVariableName);
 						if (originalValue) {
 							nodeStyles[prop] = originalValue.value;
 							if (prop === 'margin' || prop === 'padding') {
@@ -732,6 +872,13 @@ export class Scraper {
 				);
 			}
 
+			const rootFontSize = await getRootFontSize(client, rootNodeId);
+			let remVariableName: string | undefined;
+			if (rootFontSize !== 16) {
+				const uniqueId = generateUniqueId();
+				remVariableName = `--original-rem-base-${uniqueId}`;
+			}
+
 			for (const selector of selectors) {
 				const trimmed = selector.trim();
 				if (!trimmed) continue;
@@ -745,7 +892,8 @@ export class Scraper {
 					client,
 					rootNodeId,
 					trimmed,
-					elements.length
+					elements.length,
+					remVariableName
 				);
 				const resultElements = result.elements ?? [];
 				console.log(trimmed, 'querySelectorAll length', resultElements.length);
@@ -755,7 +903,11 @@ export class Scraper {
 				}
 			}
 
-			return { elements };
+			return { 
+				elements,
+				remBaseVariableName: remVariableName,
+				remBaseFontSize: rootFontSize
+			};
 		} finally {
 			await this.close();
 		}

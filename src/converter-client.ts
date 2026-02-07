@@ -22,6 +22,12 @@ export class ConverterClient {
 	buildHtmlWithStyles(result: ScrapeResult): string {
 		const rules: string[] = [];
 		const htmlParts: string[] = [];
+		
+		if (result.remBaseVariableName && result.remBaseFontSize) {
+			const rootRule = `:root{${result.remBaseVariableName}: ${result.remBaseFontSize}px;}`;
+			rules.push(rootRule);
+		}
+		
 		result.elements.forEach((el, i) => {
 			const nodes = el.descendantStyles?.length
 				? el.descendantStyles

@@ -18,6 +18,8 @@ export interface ScrapedElement {
 
 export interface ScrapeResult {
 	elements: ScrapedElement[];
+	remBaseVariableName?: string;
+	remBaseFontSize?: number;
 }
 
 export type InPagePayload = {
